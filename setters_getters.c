@@ -13,6 +13,10 @@ PLUGIN_VERSION_CHECK(147)
 PLUGIN_SET_INFO("C++ setters/getters generator", "Generates C++ setters and getters methods",
                 "0.01-alpha", "Alexander Tumin <itakingiteasy@gmail.com>");
 
+char template[] = "\tpublic:\n$SETTERS\n\tpublic:\n$GETTERS\n";
+char setterstemplate[] = "\t\tvoid set_$NAME($TYPE value) {\n\t\t\tthis->$NAME = value;\n\t\t}\n";
+char getterstemplate[] = "\t\t$TYPE get_$NAME(void) {\n\t\t\tthis->return this->$NAME;\n\t\t}\n";
+
 enum PropertyKind {
 	INVALID_KIND,
 	PUBLIC,
@@ -120,6 +124,7 @@ char *trim_left_string(char *str) {
 	return trimmed;
 }
 
+
 char *helper_getType(ScintillaObject *sci, CXSourceLocation loc) {
 	gchar c,pv;
 	unsigned int offset;
@@ -195,8 +200,11 @@ struct ChunkedString {
 	size_t chunk;
 };
 
-void add_chunked_string(struct ChunkedString *chstr, gchar *string) {
-	int len = strlen(string);
+void add_chunked_string(struct ChunkedString *chstr, gchar *string,int length) {
+	int len = length;
+	if (len <= 0) {
+		len = strlen(string);
+	}
 	chstr->used += len;
 	while (chstr->used > chstr->allocated) {
 			chstr->allocated += chstr->chunk;
@@ -205,37 +213,68 @@ void add_chunked_string(struct ChunkedString *chstr, gchar *string) {
 	strncpy((chstr->data+chstr->used-len),string,len);
 }
 
-gchar *gen_setters_getters(struct PropertyList *proplist) {
+gchar *replace_chunked_string(gchar *string, gchar *variable, gchar *replacement) {
 	int i;
+	gchar *oldp = string;
+	gchar *p = NULL;
 	struct ChunkedString result;
 	result.data = NULL;
 	result.allocated = 0;
 	result.used = 0;
 	result.chunk = 1024;
 	
-	add_chunked_string(&result,"\n\tpublic:\n");
-	for (i=0; i < proplist->used; i++) {
-		add_chunked_string(&result, "\t\tvoid set_");
-		add_chunked_string(&result, proplist->data[i].name);
-		add_chunked_string(&result, "(");
-		add_chunked_string(&result, proplist->data[i].type);
-		add_chunked_string(&result, " value) {\n\t\t\tthis->");
-		add_chunked_string(&result, proplist->data[i].name);
-		add_chunked_string(&result, " = value;\n\t\t}\n");
-	}
+	i=0;
 	
-	add_chunked_string(&result,"\n\tpublic:\n");
-	for (i=0; i < proplist->used; i++) {
-		add_chunked_string(&result, "\t\t");
-		add_chunked_string(&result, proplist->data[i].type);
-		add_chunked_string(&result, " get_");
-		add_chunked_string(&result, proplist->data[i].name);
-		add_chunked_string(&result, "(void) {\n\t\t\treturn tthis->");
-		add_chunked_string(&result, proplist->data[i].name);
-		add_chunked_string(&result, ";\n\t\t}\n");
+	while ((p = strstr(oldp,variable))) {
+		add_chunked_string(&result,oldp,(p-oldp));
+		add_chunked_string(&result,replacement,0);
+		oldp += (p-oldp);
+		oldp += strlen(variable);
 	}
+	add_chunked_string(&result,oldp,0);
+	return result.data;
+}
+
+gchar *gen_setters_getters(struct PropertyList *proplist) {
+	int i;
+	struct ChunkedString result,setters,getters;
+	gchar *tmp = NULL;
 	
-	printf("RR> %s\n",result.data);
+	result.data = NULL;
+	result.allocated = 0;
+	result.used = 0;
+	result.chunk = 1024;
+	
+	setters.data = NULL;
+	setters.allocated = 0;
+	setters.used = 0;
+	setters.chunk = 1024;
+	
+	getters.data = NULL;
+	getters.allocated = 0;
+	getters.used = 0;
+	getters.chunk = 1024;
+	
+	for (i=0; i < proplist->used; i++) {
+		tmp = replace_chunked_string(setterstemplate,"$NAME",proplist->data[i].name);
+		tmp = replace_chunked_string(tmp,"$TYPE",proplist->data[i].type);
+		add_chunked_string(&setters,tmp,0);
+		
+		tmp = replace_chunked_string(getterstemplate,"$NAME",proplist->data[i].name);
+		tmp = replace_chunked_string(tmp,"$TYPE",proplist->data[i].type);
+		add_chunked_string(&getters,tmp,0);
+	}
+	tmp = replace_chunked_string(template,"$SETTERS",setters.data);
+	tmp = replace_chunked_string(tmp,"$GETTERS",getters.data);
+	
+//	setters = replace_chunked_string(setterstemplate,"$NAME",proplist->data[0].name);
+	//setters = replace_chunked_string(setters,"$TYPE",proplist->data[0].type);
+	
+	//getters = replace_chunked_string(getterstemplate,"$NAME",proplist->data[0].name);
+	//getters = replace_chunked_string(getters,"$TYPE",proplist->data[0].type);
+	
+	add_chunked_string(&result,tmp,0);
+	//printf("RR> %s\n",result.data);
 	return result.data;
 }
 
