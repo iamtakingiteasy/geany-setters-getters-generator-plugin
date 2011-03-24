@@ -8,6 +8,7 @@ void chunked_string_init(struct ChunkedString *chunked_string, size_t chunk_size
 }
 void chunked_string_free(struct ChunkedString *chunked_string) {
 	free(chunked_string->data);
+	chunked_string->data = NULL;
 	chunked_string->allocated = 0;
 	chunked_string->used = 0;
 }
@@ -29,10 +30,10 @@ void chunked_string_add(struct ChunkedString *chunked_string, gchar *string,size
 		diff = chunked_string->used - chunked_string->allocated;
 		chunks = diff / chunked_string->chunk;
 		if (diff % chunked_string->chunk) chunks++;
-		alloc_bytes = (chunked_string->allocated + (chunks * chunked_string->chunk)) * sizeof(gchar);
+		alloc_bytes = (1 + chunked_string->allocated + (chunks * chunked_string->chunk)) * sizeof(gchar);
 		chunked_string->data = realloc(chunked_string->data,alloc_bytes);
 	}
-	strncpy(chunked_string->data+chunked_string->used-length,string,length);
+	strncpy(chunked_string->data+chunked_string->used-length,string,length + 1);
 }
 
 /* returning string must be freed by user */
@@ -44,11 +45,15 @@ gchar *chunked_string_replace(gchar *source, gchar *variable, gchar *replacement
 	chunked_string_init(&chunked_string,1024);
 	
 	while ((p = strstr(oldp,variable))) {
-		chunked_string_add(&chunked_string,oldp,(p-oldp));
+		if (p > oldp) {
+			chunked_string_add(&chunked_string,oldp,(p-oldp));
+		}
 		chunked_string_add(&chunked_string,replacement,0);
 		oldp += (p-oldp);
 		oldp += strlen(variable);
 	}
-	chunked_string_add(&chunked_string,oldp,0);
+	chunked_string_add(&chunked_string,oldp,strlen(oldp));
+
+	free(source);
 	return chunked_string_to_gchar(&chunked_string);
 }
