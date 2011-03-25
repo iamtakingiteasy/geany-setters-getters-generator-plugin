@@ -8,6 +8,7 @@
 #include <clang-c/Index.h>
 #include "chunked_strings_crutch.h"
 #include "chunked_clang_property_crutch.h"
+#include "gui_crutch.h"
 
 /* plugin-specific things */
 
@@ -82,6 +83,6 @@ gchar *trim_right_string(gchar *string);
 enum CXChildVisitResult property_list_builder(CXCursor cursor, CXCursor cursor_parent, CXClientData client_data);
 enum PropertyKind property_helper_get_kind(ScintillaObject *current_doc_sci, CXSourceLocation code_source_location);
 gchar *property_helper_get_type(ScintillaObject *current_doc_sci, CXSourceLocation code_source_location);
-void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor, gboolean placement_inner);
+gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor);
 gchar *substitute_variables(gchar *source, gchar *type, gchar *name, gchar *kind, gchar *class);
 #endif

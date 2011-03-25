@@ -6,7 +6,7 @@ PLUGIN_NAME = setters_getters.so
 all: $(PLUGIN_NAME)
 
 clean:
-	rm -f setters_getters.so setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o
+	rm -f setters_getters.so setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o gui_crutch.o
 	
 install:
 	cp $(PLUGIN_NAME) /usr/lib/geany/
@@ -17,6 +17,7 @@ develop_run:
 setters_getters.o: setters_getters.h setters_getters.c
 chunked_strings_crutch.o: chunked_strings_crutch.c chunked_strings_crutch.h
 chunked_clang_property_crutch.o: chunked_clang_property_crutch.c chunked_clang_property_crutch.h
+gui_crutch.o: gui_crutch.c gui_crutch.h
 
-$(PLUGIN_NAME): setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o
-	$(CC) -o $(PLUGIN_NAME) $(FLAGS) setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o
+$(PLUGIN_NAME): setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o gui_crutch.o
+	$(CC) -o $(PLUGIN_NAME) $(FLAGS) setters_getters.o chunked_strings_crutch.o chunked_clang_property_crutch.o gui_crutch.o

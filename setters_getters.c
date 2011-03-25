@@ -122,16 +122,20 @@ gchar *substitute_variables(gchar *source, gchar *type, gchar *name, gchar *kind
 	return result;
 }
 
-void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor, gboolean placement_inner) {
+gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor) {
 	size_t i;
 	CXString cx_class_name;
 	CXSourceRange class_cursor_range;
 	CXSourceLocation class_cursor_end;
+	
 	unsigned int class_end_point = 0;
+	gchar c;
 	gchar *class_name;
 	gchar *tmp = NULL;
 	gboolean do_setters = FALSE;
 	gboolean do_getters = FALSE;
+	gboolean was_inner = FALSE;
+	gboolean was_outter = FALSE;
 	
 	struct ChunkedString inner;
 	struct ChunkedString outter;
@@ -159,7 +163,9 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 	class_name = (gchar *)clang_getCString(cx_class_name); /*  does not need to be freed ... */	
 
 	for (i=0; i < property_list.used; i++) {
-		if (placement_inner == TRUE) {
+		if (property_list.data[i].is_inner == TRUE) {
+			if (was_inner == FALSE)
+				was_inner = TRUE;
 			if (property_list.data[i].do_setter == TRUE) {
 				if (do_setters == FALSE)
 					do_setters = TRUE;
@@ -177,6 +183,8 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 				tmp = NULL;
 			}
 		} else {
+			if (was_outter == FALSE)
+				was_outter = TRUE;
 			if (property_list.data[i].do_setter == TRUE) {
 				if (do_setters == FALSE)
 					do_setters = TRUE;
@@ -206,7 +214,7 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 	}
 	
 	
-	if (placement_inner == TRUE) {
+	if (was_inner == TRUE) {
 		tmp = malloc((strlen(sg_inner_template) + 1) * sizeof(gchar));
 		strncpy(tmp,sg_inner_template,strlen(sg_inner_template) + 1);
 		tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&inner_setters));
@@ -214,7 +222,8 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 		chunked_string_add(&inner,tmp,0);
 		free(tmp);
 		tmp = NULL;
-	} else {
+	}
+	if (was_outter) {
 		tmp = malloc((strlen(sg_outter_forward_template) + 1) * sizeof(gchar));
 		strncpy(tmp,sg_outter_forward_template,strlen(sg_outter_forward_template) + 1);
 		tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&outter_forward_setters));
@@ -236,8 +245,12 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 	class_cursor_end = clang_getRangeEnd(class_cursor_range);
 	clang_getInstantiationLocation(class_cursor_end,NULL,NULL,NULL,&class_end_point);
 	
-	while ((sci_get_char_at(current_doc_sci,class_end_point++)) != ';' );
-	class_end_point += 1;
+	while ((c = sci_get_char_at(current_doc_sci,class_end_point++)) != ';') {
+		if (!isspace(c)) {
+			return FALSE;
+		}
+	}
+	
 	sci_insert_text(current_doc_sci,class_end_point,chunked_string_to_gchar(&outter));
 
 	clang_getInstantiationLocation(class_cursor_end,NULL,NULL,NULL,&class_end_point);
@@ -256,7 +269,7 @@ void gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor
 	chunked_string_free(&outter_getters);
 	
 	clang_disposeString(cx_class_name);
-
+	return TRUE;
 }
 
 static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
@@ -276,7 +289,7 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	CXSourceLocation code_source_location;
 	CXTranslationUnit code_translation_unit;
 	struct CXUnsavedFile code_unsaved_file;
-	
+
 	/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	
 	/* geany stuff */
@@ -320,9 +333,11 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 		return;
 	}
 
-	/* here interaction dialog would be called */
-	
-	gen_setters_getters(current_doc_sci,code_cursor,sg_placement_inner);
+	if (gui_interaction_dialog()) {
+		if (!gen_setters_getters(current_doc_sci,code_cursor)) {
+			dialogs_show_msgbox(GTK_MESSAGE_INFO, "Class seems to be not terminated with ';' (semicolon) character. Aborting.");
+		}
+	}
 	
 	chunked_property_free(&property_list);
 }
@@ -357,7 +372,7 @@ void plugin_init(GeanyData *data) {
 	stash_group_add_string(group, &sg_outter_template, "sg_outter_template", "\n$SETTERS\n$GETTERS\n");
 	stash_group_add_string(group, &sg_outter_setters, "sg_outter_setters", "void $CLASS::set_$NAME($TYPE value) {\n\tthis->$NAME = value;\n}\n");
 	stash_group_add_string(group, &sg_outter_getters, "sg_outter_getters", "$TYPE $CLASS::get_$NAME(void) {\n\tthis->return this->$NAME;\n}\n");
-	stash_group_add_boolean(group, &sg_placement_inner, "sg_placement_inner", FALSE);
+	stash_group_add_boolean(group, &sg_placement_inner, "sg_placement_inner", TRUE);
 	stash_group_add_boolean(group, &sg_do_setters, "sg_do_setters", TRUE);
 	stash_group_add_boolean(group, &sg_do_getters, "sg_do_getters", TRUE);
 	stash_group_add_integer(group, (int *)&sg_setter_kind, "sg_setter_kind", (int)PUBLIC);
@@ -365,6 +380,10 @@ void plugin_init(GeanyData *data) {
 	
 	stash_group_load_from_file(group,config_filename);
 	stash_group_save_to_file(group, config_filename, G_KEY_FILE_NONE);
+	
+	/*
+	stash_group_add_toggle_button(group, NULL, "handle", TRUE, "check_handle");//
+	*/
 }
 
 /*
@@ -374,7 +393,6 @@ GtkWidget* plugin_configure (GtkDialog *dialog)  {
 	return vbox;
 }
 */
-
 void plugin_cleanup(void) {
     gtk_widget_destroy(main_menu_item);
 	free(config_filename);
