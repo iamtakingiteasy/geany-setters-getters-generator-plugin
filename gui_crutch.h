@@ -2,11 +2,18 @@
 #define CRUTCH_GUI
 #include "chunked_clang_property_crutch.h"
 #include <geanyplugin.h>
+
 extern GeanyPlugin     *geany_plugin;
 extern GeanyData       *geany_data;
 extern GeanyFunctions  *geany_functions;
 
 extern struct PropertyList property_list;
+
+struct CheckTask {
+	GtkTreeStore *store;
+	size_t column;
+	gboolean value;
+};
 
 enum TreeCols {
 	PROP_TYPE,
