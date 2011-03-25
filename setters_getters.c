@@ -115,6 +115,7 @@ enum CXChildVisitResult filterer(CXCursor cursor, CXCursor cursor_parent, CXClie
 	struct GcharTuple *tuple = (struct GcharTuple *)client_data;
 	gchar *gettername = tuple->first;
 	gchar *settername = tuple->second;
+	gchar *classname = tuple->class_name;
 	size_t number = tuple->number;
 	
 	enum CXCursorKind code_cursor_kind;
@@ -124,6 +125,16 @@ enum CXChildVisitResult filterer(CXCursor cursor, CXCursor cursor_parent, CXClie
 	code_cursor_kind = clang_getCursorKind(cursor);
 	parent_cursor_kind = clang_getCursorKind(cursor_parent);
 
+	if (code_cursor_kind == 4) {
+		source_name = (gchar *)clang_getCString(clang_getCursorSpelling(cursor));		
+		if (strncmp(source_name,classname,strlen(classname)) == 0) {
+			free(source_name);
+			source_name = NULL;
+			return CXChildVisit_Recurse;
+		}
+		free(source_name);
+		source_name = NULL;
+	}
 	if (code_cursor_kind == 21) {
 		source_name = (gchar *)clang_getCString(clang_getCursorSpelling(cursor));		
 		if (strncmp(source_name,settername,strlen(settername)) == 0) {
@@ -140,7 +151,7 @@ enum CXChildVisitResult filterer(CXCursor cursor, CXCursor cursor_parent, CXClie
 	return CXChildVisit_Continue;
 }
 
-void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gchar *filename) {
+void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gchar *filename, gchar *class_name) {
 	size_t i;
 	CXFile code_file;
 	CXCursor code_cursor;
@@ -164,6 +175,7 @@ void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gch
 		
 		tuple.first = gettername;
 		tuple.second = settername;
+		tuple.class_name = class_name;
 		tuple.number = i;
 
 		clang_visitChildren(code_cursor,filterer,&tuple);
@@ -187,15 +199,13 @@ gchar *substitute_variables(gchar *source, gchar *methname, gchar *type, gchar *
 	return result;
 }
 
-gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor) {
+gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor, gchar *class_name) {
 	size_t i;
-	CXString cx_class_name;
 	CXSourceRange class_cursor_range;
 	CXSourceLocation class_cursor_end;
 	
 	unsigned int class_end_point = 0;
 	gchar c;
-	gchar *class_name;
 	gchar *tmp = NULL;
 	gboolean do_setters = FALSE;
 	gboolean do_getters = FALSE;
@@ -223,9 +233,6 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 	chunked_string_init(&outter_forward_setters,1024);
 	chunked_string_init(&outter_setters,1024);
 	chunked_string_init(&outter_getters,1024);
-
-	cx_class_name = clang_getCursorSpelling(class_cursor);
-	class_name = (gchar *)clang_getCString(cx_class_name); /*  does not need to be freed ... */	
 
 	for (i=0; i < property_list.used; i++) {
 		if (property_list.data[i].is_inner == TRUE) {
@@ -338,7 +345,6 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 	chunked_string_free(&outter_setters);
 	chunked_string_free(&outter_getters);
 	
-	clang_disposeString(cx_class_name);
 	return TRUE;
 }
 static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
@@ -359,6 +365,8 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	CXSourceLocation code_source_location;
 	CXTranslationUnit code_translation_unit;
 	struct CXUnsavedFile code_unsaved_file;
+	gchar *class_name;
+	CXString cx_class_name;
 
 	/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 	
@@ -403,14 +411,19 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 		return;
 	}
 	
-	filter_already_existing_methods(code_translation_unit,filename);
+	cx_class_name = clang_getCursorSpelling(code_cursor);
+	class_name = (gchar *)clang_getCString(cx_class_name); /*  does not need to be freed ... */	
+	
+	filter_already_existing_methods(code_translation_unit,filename,class_name);
+	
 
 	if (gui_interaction_dialog()) {
-		if (!gen_setters_getters(current_doc_sci,code_cursor)) {
+		if (!gen_setters_getters(current_doc_sci,code_cursor,class_name)) {
 			dialogs_show_msgbox(GTK_MESSAGE_INFO, "Class seems to be not terminated with ';' (semicolon) character. Aborting.");
 		}
 	}
-	
+		
+	clang_disposeString(cx_class_name);
 	chunked_property_free(&property_list);
 }
 

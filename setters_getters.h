@@ -27,6 +27,7 @@ struct GcharTuple {
 	gchar *first;
 	gchar *second;
 	size_t number;
+	gchar *class_name;
 };
 
 
@@ -91,9 +92,9 @@ gchar *trim_left_string(gchar *string);
 gchar *trim_right_string(gchar *string);
 enum CXChildVisitResult property_list_builder(CXCursor cursor, CXCursor cursor_parent, CXClientData client_data);
 enum CXChildVisitResult filterer(CXCursor cursor, CXCursor cursor_parent, CXClientData client_data);
-void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gchar *filename);
+void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gchar *filename, gchar *class_name);
 enum PropertyKind property_helper_get_kind(ScintillaObject *current_doc_sci, CXSourceLocation code_source_location);
 gchar *property_helper_get_type(ScintillaObject *current_doc_sci, CXSourceLocation code_source_location);
-gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor);
+gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cursor, gchar *class_name);
 gchar *substitute_variables(gchar *source, gchar *methname, gchar *type, gchar *name, gchar *kind, gchar *class);
 #endif
