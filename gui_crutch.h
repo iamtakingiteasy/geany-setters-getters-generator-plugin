@@ -14,9 +14,10 @@ enum TreeCols {
 	DO_SETTER,
 	DO_GETTER,
 	IS_INNER,
-	DUMMY,
+	INNER_ENABLED,
 	N_COLS
 };
+
 
 
 void toggle_checker(GtkCellRendererToggle *cell, gchar *path_str, gpointer data);

@@ -111,10 +111,75 @@ enum CXChildVisitResult property_list_builder(CXCursor cursor, CXCursor cursor_p
 	return CXChildVisit_Continue;
 }
 
-gchar *substitute_variables(gchar *source, gchar *type, gchar *name, gchar *kind, gchar *class) {
+enum CXChildVisitResult filterer(CXCursor cursor, CXCursor cursor_parent, CXClientData client_data) {
+	struct GcharTuple *tuple = (struct GcharTuple *)client_data;
+	gchar *gettername = tuple->first;
+	gchar *settername = tuple->second;
+	size_t number = tuple->number;
+	
+	enum CXCursorKind code_cursor_kind;
+	enum CXCursorKind parent_cursor_kind;
+	gchar *source_name = NULL;
+
+	code_cursor_kind = clang_getCursorKind(cursor);
+	parent_cursor_kind = clang_getCursorKind(cursor_parent);
+
+	if (code_cursor_kind == 21) {
+		source_name = (gchar *)clang_getCString(clang_getCursorSpelling(cursor));		
+		if (strncmp(source_name,settername,strlen(settername)) == 0) {
+			property_list.data[number].do_setter = FALSE;
+			property_list.data[number].is_inner = FALSE;
+		}
+		if (strncmp(source_name,gettername,strlen(gettername)) == 0) {
+			property_list.data[number].do_getter = FALSE;
+			property_list.data[number].is_inner = FALSE;
+		}
+		free(source_name);
+		source_name = NULL;
+	}
+	return CXChildVisit_Continue;
+}
+
+void filter_already_existing_methods(CXTranslationUnit code_translation_unit,gchar *filename) {
+	size_t i;
+	CXFile code_file;
+	CXCursor code_cursor;
+	CXSourceLocation code_source_location;
+	gchar *settername;
+	gchar *gettername;
+	struct GcharTuple tuple;
+		
+	code_file = clang_getFile(code_translation_unit,filename);
+	code_source_location = clang_getLocation(code_translation_unit,code_file,1,1);
+	code_cursor = clang_getTranslationUnitCursor(code_translation_unit);
+	
+	for (i=0; i < property_list.used; i++) {
+		gettername = malloc((strlen(sg_method_name_getter) + 1) * sizeof(gchar));
+		strncpy(gettername,sg_method_name_getter,strlen(sg_method_name_getter) + 1);
+		gettername = chunked_string_replace(gettername,"$NAME",property_list.data[i].name);
+		
+		settername = malloc((strlen(sg_method_name_setter) + 1) * sizeof(gchar));
+		strncpy(settername,sg_method_name_setter,strlen(sg_method_name_setter) + 1);
+		settername = chunked_string_replace(settername,"$NAME",property_list.data[i].name);
+		
+		tuple.first = gettername;
+		tuple.second = settername;
+		tuple.number = i;
+
+		clang_visitChildren(code_cursor,filterer,&tuple);
+		
+		free(gettername);
+		gettername = NULL;
+		free(settername);
+		settername = NULL;
+	}
+}
+
+gchar *substitute_variables(gchar *source, gchar *methname, gchar *type, gchar *name, gchar *kind, gchar *class) {
 	gchar *result = NULL;
 	result = malloc((strlen(source) + 1) * sizeof(gchar));
 	strncpy(result,source,strlen(source) + 1);
+	result = chunked_string_replace(result,"$METHNAME",methname);
 	result = chunked_string_replace(result,"$TYPE",type);
 	result = chunked_string_replace(result,"$NAME",name);
 	result = chunked_string_replace(result,"$KIND",kind);
@@ -169,7 +234,7 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 			if (property_list.data[i].do_setter == TRUE) {
 				if (do_setters == FALSE)
 					do_setters = TRUE;
-				tmp = substitute_variables(sg_inner_setters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_inner_setters,sg_method_name_setter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&inner_setters,tmp,0);
 				free(tmp);
 				tmp = NULL;
@@ -177,7 +242,7 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 			if (property_list.data[i].do_getter == TRUE) {
 				if (do_getters == FALSE)
 					do_getters = TRUE;
-				tmp = substitute_variables(sg_inner_getters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_inner_getters,sg_method_name_getter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&inner_getters,tmp,0);
 				free(tmp);
 				tmp = NULL;
@@ -188,11 +253,11 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 			if (property_list.data[i].do_setter == TRUE) {
 				if (do_setters == FALSE)
 					do_setters = TRUE;
-				tmp = substitute_variables(sg_outter_setters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_outter_setters,sg_method_name_setter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&outter_setters,tmp,0);
 				free(tmp);
 				tmp = NULL;
-				tmp = substitute_variables(sg_outter_forward_setters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_outter_forward_setters,sg_method_name_setter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&outter_forward_setters,tmp,0);
 				free(tmp);
 				tmp = NULL;
@@ -201,11 +266,11 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 			if (property_list.data[i].do_getter == TRUE) {
 				if (do_getters == FALSE)
 					do_getters = TRUE;
-				tmp = substitute_variables(sg_outter_getters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_outter_getters,sg_method_name_getter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&outter_getters,tmp,0);
 				free(tmp);
 				tmp = NULL;
-				tmp = substitute_variables(sg_outter_forward_getters,property_list.data[i].type,property_list.data[i].name,"public",class_name);
+				tmp = substitute_variables(sg_outter_forward_getters,sg_method_name_getter,property_list.data[i].type,property_list.data[i].name,"public",class_name);
 				chunked_string_add(&outter_forward_getters,tmp,0);
 				free(tmp);
 				tmp = NULL;
@@ -215,30 +280,35 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 	
 	
 	if (was_inner == TRUE) {
-		tmp = malloc((strlen(sg_inner_template) + 1) * sizeof(gchar));
-		strncpy(tmp,sg_inner_template,strlen(sg_inner_template) + 1);
-		tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&inner_setters));
-		tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&inner_getters));
-		chunked_string_add(&inner,tmp,0);
-		free(tmp);
-		tmp = NULL;
+		if (chunked_string_to_gchar(&inner_setters) != NULL || chunked_string_to_gchar(&inner_getters) != NULL) {
+			tmp = malloc((strlen(sg_inner_template) + 1) * sizeof(gchar));
+			strncpy(tmp,sg_inner_template,strlen(sg_inner_template) + 1);	
+			tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&inner_setters));
+			tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&inner_getters));
+			chunked_string_add(&inner,tmp,0);
+			free(tmp);
+			tmp = NULL;
+		}
 	}
 	if (was_outter) {
-		tmp = malloc((strlen(sg_outter_forward_template) + 1) * sizeof(gchar));
-		strncpy(tmp,sg_outter_forward_template,strlen(sg_outter_forward_template) + 1);
-		tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&outter_forward_setters));
-		tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&outter_forward_getters));
-		chunked_string_add(&inner,tmp,0);
-		free(tmp);
-		tmp = NULL;
-		
-		tmp = malloc((strlen(sg_outter_template) + 1) * sizeof(gchar));
-		strncpy(tmp,sg_outter_template,strlen(sg_outter_template) + 1);
-		tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&outter_setters));
-		tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&outter_getters));
-		chunked_string_add(&outter,tmp,0);
-		free(tmp);
-		tmp = NULL;
+		if (chunked_string_to_gchar(&outter_forward_setters) != NULL || chunked_string_to_gchar(&outter_forward_getters) != NULL) {
+			tmp = malloc((strlen(sg_outter_forward_template) + 1) * sizeof(gchar));
+			strncpy(tmp,sg_outter_forward_template,strlen(sg_outter_forward_template) + 1);
+			tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&outter_forward_setters));
+			tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&outter_forward_getters));
+			chunked_string_add(&inner,tmp,0);
+			free(tmp);
+			tmp = NULL;
+		}
+		if (chunked_string_to_gchar(&outter_setters) != NULL || chunked_string_to_gchar(&outter_getters) != NULL) {
+			tmp = malloc((strlen(sg_outter_template) + 1) * sizeof(gchar));
+			strncpy(tmp,sg_outter_template,strlen(sg_outter_template) + 1);
+			tmp = chunked_string_replace(tmp,"$SETTERS",chunked_string_to_gchar(&outter_setters));
+			tmp = chunked_string_replace(tmp,"$GETTERS",chunked_string_to_gchar(&outter_getters));
+			chunked_string_add(&outter,tmp,0);
+			free(tmp);
+			tmp = NULL;
+		}
 	}
 	
 	class_cursor_range = clang_getCursorExtent(class_cursor);
@@ -271,7 +341,6 @@ gboolean gen_setters_getters(ScintillaObject *current_doc_sci, CXCursor class_cu
 	clang_disposeString(cx_class_name);
 	return TRUE;
 }
-
 static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	/* geany stuff */
 	GeanyDocument *current_doc = NULL;
@@ -282,6 +351,7 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	size_t current_doc_column;
 	gchar *current_doc_contents;
 	/* clang stuff */
+	gchar filename[] = "/path/to/nowhere/NonExistingFile.cpp";
 	CXFile code_file;
 	CXIndex code_index;
 	CXCursor code_cursor;
@@ -304,12 +374,12 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	/* clang stuff */
 	code_index = clang_createIndex(0,0);
 	/* setting up unsaved struct */
-	code_unsaved_file.Filename = "/path/to/nowhere/NonExistingFile.cpp";
+	code_unsaved_file.Filename = filename;
 	code_unsaved_file.Contents = current_doc_contents;
 	code_unsaved_file.Length = current_doc_length;
 	/* back to clang stuff */
-	code_translation_unit = clang_parseTranslationUnit(code_index,"/path/to/nowhere/NonExistingFile.cpp",NULL,0,&code_unsaved_file,1,CXTranslationUnit_Incomplete);
-	code_file = clang_getFile(code_translation_unit,"/path/to/nowhere/NonExistingFile.cpp");
+	code_translation_unit = clang_parseTranslationUnit(code_index,filename,NULL,0,&code_unsaved_file,1,CXTranslationUnit_Incomplete);
+	code_file = clang_getFile(code_translation_unit,filename);
 	code_source_location = clang_getLocation(code_translation_unit,code_file,current_doc_line,current_doc_column);
 	code_cursor = clang_getCursor(code_translation_unit,code_source_location);
 	code_cursor_kind = clang_getCursorKind(code_cursor);
@@ -332,6 +402,8 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 		dialogs_show_msgbox(GTK_MESSAGE_INFO, "Not properties in class. Aborting.");
 		return;
 	}
+	
+	filter_already_existing_methods(code_translation_unit,filename);
 
 	if (gui_interaction_dialog()) {
 		if (!gen_setters_getters(current_doc_sci,code_cursor)) {
@@ -362,16 +434,19 @@ void plugin_init(GeanyData *data) {
 		
 	group = stash_group_new("setters-getters");
 	
+	stash_group_add_string(group, &sg_method_name_getter, "sg_method_name_getter", "get_$NAME");
+	stash_group_add_string(group, &sg_method_name_setter, "sg_method_name_setter", "set_$NAME");
+	
 	stash_group_add_string(group, &sg_inner_template, "sg_inner_template", "\tpublic:\n$SETTERS\n\tpublic:\n$GETTERS\n");
-	stash_group_add_string(group, &sg_inner_setters, "sg_inner_setters", "\t\tvoid set_$NAME($TYPE value) {\n\t\t\tthis->$NAME = value;\n\t\t}\n");
-	stash_group_add_string(group, &sg_inner_getters, "sg_inner_getters", "\t\t$TYPE get_$NAME(void) {\n\t\t\treturn this->$NAME;\n\t\t}\n");
+	stash_group_add_string(group, &sg_inner_setters, "sg_inner_setters", "\t\tvoid $METHNAME($TYPE value) {\n\t\t\tthis->$NAME = value;\n\t\t}\n");
+	stash_group_add_string(group, &sg_inner_getters, "sg_inner_getters", "\t\t$TYPE $METHNAME(void) {\n\t\t\treturn this->$NAME;\n\t\t}\n");
 	
 	stash_group_add_string(group, &sg_outter_forward_template, "sg_outter_forward_template", "\tpublic:\n$SETTERS\n\tpublic:\n$GETTERS\n");
-	stash_group_add_string(group, &sg_outter_forward_setters, "sg_outter_forward_setters", "\t\tvoid set_$NAME($TYPE value);\n");
-	stash_group_add_string(group, &sg_outter_forward_getters, "sg_outter_forward_getters", "\t\t$TYPE get_$NAME(void);\n");
+	stash_group_add_string(group, &sg_outter_forward_setters, "sg_outter_forward_setters", "\t\tvoid $METHNAME($TYPE value);\n");
+	stash_group_add_string(group, &sg_outter_forward_getters, "sg_outter_forward_getters", "\t\t$TYPE $METHNAME(void);\n");
 	stash_group_add_string(group, &sg_outter_template, "sg_outter_template", "\n$SETTERS\n$GETTERS\n");
-	stash_group_add_string(group, &sg_outter_setters, "sg_outter_setters", "void $CLASS::set_$NAME($TYPE value) {\n\tthis->$NAME = value;\n}\n");
-	stash_group_add_string(group, &sg_outter_getters, "sg_outter_getters", "$TYPE $CLASS::get_$NAME(void) {\n\tthis->return this->$NAME;\n}\n");
+	stash_group_add_string(group, &sg_outter_setters, "sg_outter_setters", "void $CLASS::$METHNAME($TYPE value) {\n\tthis->$NAME = value;\n}\n");
+	stash_group_add_string(group, &sg_outter_getters, "sg_outter_getters", "$TYPE $CLASS::$METHNAME(void) {\n\tthis->return this->$NAME;\n}\n");
 	stash_group_add_boolean(group, &sg_placement_inner, "sg_placement_inner", TRUE);
 	stash_group_add_boolean(group, &sg_do_setters, "sg_do_setters", TRUE);
 	stash_group_add_boolean(group, &sg_do_getters, "sg_do_getters", TRUE);

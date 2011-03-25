@@ -5,23 +5,39 @@ void toggle_checker(GtkCellRendererToggle *cell, gchar *path_str, gpointer data)
 	GtkTreeIter iter;
 	GtkTreeModel *store = (GtkTreeModel *)data;
 	gboolean checked;
+	gboolean setter_checked;
+	gboolean getter_checked;
 	
 	gtk_tree_model_get_iter_from_string(store,&iter,path_str);
+	
 	column_number = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(cell), "my_column_num"));
 	
 	gtk_tree_model_get(store,&iter,column_number,&checked,-1);
-	
-	checked ^= 1;
-	
-	gtk_tree_store_set((GtkTreeStore *)store,&iter,column_number,checked,-1);
+	gtk_tree_model_get(store,&iter,2,&setter_checked,-1);
+	gtk_tree_model_get(store,&iter,3,&getter_checked,-1);
 
 	
+	checked ^= 1;
+
+	gtk_tree_store_set((GtkTreeStore *)store,&iter,column_number,checked,-1);
+
+
 	switch (column_number) {
 		case 2:
 			property_list.data[atoi(path_str)].do_setter = checked;
+			if (!getter_checked && checked == FALSE) {
+				gtk_tree_store_set((GtkTreeStore *)store,&iter,5,FALSE,-1);
+			} else {
+				gtk_tree_store_set((GtkTreeStore *)store,&iter,5,TRUE,-1);
+			}
 			break;
 		case 3:
 			property_list.data[atoi(path_str)].do_getter = checked;
+			if (!setter_checked && checked == FALSE) {
+					gtk_tree_store_set((GtkTreeStore *)store,&iter,5,FALSE,-1);
+			} else {
+				gtk_tree_store_set((GtkTreeStore *)store,&iter,5,TRUE,-1);
+			}
 			break;
 		case 4:
 			property_list.data[atoi(path_str)].is_inner = checked;
@@ -60,12 +76,13 @@ GtkWidget *make_tree(GtkTreeStore *store) {
 	
 	renderer = gtk_cell_renderer_toggle_new();
 	g_object_set_data(G_OBJECT(renderer), "my_column_num", GUINT_TO_POINTER(IS_INNER));
-	column = gtk_tree_view_column_new_with_attributes("Inner?",renderer,"active",IS_INNER,NULL);	
+	column = gtk_tree_view_column_new_with_attributes("Inner?",renderer,"active",IS_INNER,"sensitive",INNER_ENABLED,NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree),column);
 	g_signal_connect (G_OBJECT(renderer), "toggled", G_CALLBACK(toggle_checker), store);
 	
-	renderer = gtk_cell_renderer_text_new();
-	column = gtk_tree_view_column_new_with_attributes("",renderer,"text",DUMMY,NULL);
+	renderer = gtk_cell_renderer_toggle_new();
+	g_object_set(renderer,"visible", FALSE, NULL);
+	column = gtk_tree_view_column_new_with_attributes("",renderer,"active",INNER_ENABLED,NULL);
 	gtk_tree_view_append_column(GTK_TREE_VIEW(tree),column);
 	
 	
@@ -78,7 +95,7 @@ void populate_tree_with_data(GtkTreeStore *store) {
 	
 	for (i=0; i < property_list.used; i++) {
 		gtk_tree_store_append(store,&iter,NULL);
-		gtk_tree_store_set(store,&iter,PROP_TYPE,property_list.data[i].type,PROP_NAME,property_list.data[i].name,DO_SETTER,property_list.data[i].do_setter,DO_GETTER,property_list.data[i].do_getter,IS_INNER,property_list.data[i].is_inner,-1);
+		gtk_tree_store_set(store,&iter,PROP_TYPE,property_list.data[i].type,PROP_NAME,property_list.data[i].name,DO_SETTER,property_list.data[i].do_setter,DO_GETTER,property_list.data[i].do_getter,IS_INNER,property_list.data[i].is_inner,INNER_ENABLED,TRUE,-1);
 	}
 }
 
@@ -95,7 +112,7 @@ gboolean gui_interaction_dialog() {
 	vbox = ui_dialog_vbox_new(GTK_DIALOG(dialog));
 	gtk_widget_set_name(dialog, "cpp-setters-getters-generator");
 	
-	store = gtk_tree_store_new(N_COLS,G_TYPE_STRING,G_TYPE_STRING,G_TYPE_BOOLEAN,G_TYPE_BOOLEAN,G_TYPE_BOOLEAN,G_TYPE_STRING);
+	store = gtk_tree_store_new(N_COLS,G_TYPE_STRING,G_TYPE_STRING,G_TYPE_BOOLEAN,G_TYPE_BOOLEAN,G_TYPE_BOOLEAN,G_TYPE_BOOLEAN);
 
 	tree = make_tree(store);
 	
