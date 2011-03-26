@@ -101,7 +101,7 @@ void populate_tree_with_data(GtkTreeStore *store) {
 
 /* I'm not a GTK-man, so i do code crutches! */
 void do_check_task(GtkButton *button, gpointer *user_data) {
-	GtkTreeStore *store = (GtkTreeStore *)user_data;
+	GtkTreeStore *store = (GtkTreeStore *)g_object_get_data(G_OBJECT(button), "store");
 	gint column_number;
 	gboolean name_current_stright;
 	gchar *name_stright;
@@ -146,11 +146,45 @@ void do_check_task(GtkButton *button, gpointer *user_data) {
 	
 	g_object_set_data(G_OBJECT(button), "name-current-stright",GINT_TO_POINTER(name_current_stright));
 	
-	
-	if (name_current_stright) {
-		g_object_set(button,"label", name_stright, NULL);
+	if (column_number >= 0) { 
+		if (name_current_stright) {
+			g_object_set(button,"label", name_stright, NULL);
+		} else {
+			g_object_set(button,"label", name_reverse, NULL);
+		}
 	} else {
-		g_object_set(button,"label", name_reverse, NULL);
+		GtkWidget *button_all_getters = g_object_get_data(G_OBJECT(button), "button-all-getters");
+		GtkWidget *button_all_setters = g_object_get_data(G_OBJECT(button), "button-all-setters");
+		GtkWidget *button_all_inner = g_object_get_data(G_OBJECT(button), "button-all-inner");
+		if (name_current_stright) {
+			g_object_set(button,"label", name_stright, NULL);
+
+			name_stright = g_object_get_data(G_OBJECT(button_all_getters), "name-stright");
+			g_object_set(button_all_getters,"label", name_stright, NULL);
+			g_object_set_data(G_OBJECT(button_all_getters), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+
+			name_stright = g_object_get_data(G_OBJECT(button_all_setters), "name-stright");
+			g_object_set(button_all_setters,"label", name_stright, NULL);
+			g_object_set_data(G_OBJECT(button_all_setters), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+		
+			name_stright = g_object_get_data(G_OBJECT(button_all_inner), "name-stright");
+			g_object_set(button_all_inner,"label", name_stright, NULL);
+			g_object_set_data(G_OBJECT(button_all_inner), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+		} else {
+			g_object_set(button,"label", name_reverse, NULL);
+			
+			name_reverse = g_object_get_data(G_OBJECT(button_all_getters), "name-reverse");
+			g_object_set(button_all_getters,"label", name_reverse, NULL);
+			g_object_set_data(G_OBJECT(button_all_getters), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+			
+			name_reverse = g_object_get_data(G_OBJECT(button_all_setters), "name-reverse");
+			g_object_set(button_all_setters,"label", name_reverse, NULL);
+			g_object_set_data(G_OBJECT(button_all_setters), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+			
+			name_reverse = g_object_get_data(G_OBJECT(button_all_inner), "name-reverse");
+			g_object_set(button_all_inner,"label", name_reverse, NULL);
+			g_object_set_data(G_OBJECT(button_all_inner), "name-current-stright",GINT_TO_POINTER(name_current_stright));
+		}
 	}
 }
 
@@ -199,15 +233,6 @@ gboolean gui_interaction_dialog() {
 	
 	test = TRUE;
 	for (i=0; i < property_list.used; i++) {
-		if (property_list.data[i].do_setter == FALSE || property_list.data[i].do_getter == FALSE || property_list.data[i].is_inner == FALSE) {
-			test = FALSE;
-			break;
-		}
-	}
-	if (test) all_all = FALSE;
-	
-	test = TRUE;
-	for (i=0; i < property_list.used; i++) {
 		test = test && property_list.data[i].is_inner;
 	}
 	if (test) all_inner = FALSE;
@@ -223,7 +248,21 @@ gboolean gui_interaction_dialog() {
 		test = test && property_list.data[i].do_getter;
 	}
 	if (test) all_getters = FALSE;
+
 	
+	test = TRUE;
+	for (i=0; i < property_list.used; i++) {
+		if (property_list.data[i].do_setter == FALSE || property_list.data[i].do_getter == FALSE || property_list.data[i].is_inner == FALSE) {
+			test = FALSE;
+			break;
+		}
+	}
+	if (test) {
+		all_all = FALSE;
+		all_setters = FALSE;
+		all_getters = FALSE;
+		all_inner = FALSE;
+	}
 		
 	p = (all_getters) ? getters_stright : getters_reverse;
 	check_all_getters = gtk_button_new_with_label(p);
@@ -241,26 +280,34 @@ gboolean gui_interaction_dialog() {
 	g_object_set_data(G_OBJECT(check_all_getters), "name-stright",getters_stright);
 	g_object_set_data(G_OBJECT(check_all_getters), "name-reverse",getters_reverse);
 	g_object_set_data(G_OBJECT(check_all_getters), "name-current-stright",GINT_TO_POINTER(all_getters));
+	g_object_set_data(G_OBJECT(check_all_getters), "store",store);
+	
 	
 	g_object_set_data(G_OBJECT(check_all_setters), "column-num", GINT_TO_POINTER(DO_SETTER));
 	g_object_set_data(G_OBJECT(check_all_setters), "name-stright",setters_stright);
 	g_object_set_data(G_OBJECT(check_all_setters), "name-reverse",setters_reverse);
 	g_object_set_data(G_OBJECT(check_all_setters), "name-current-stright",GINT_TO_POINTER(all_setters));
+	g_object_set_data(G_OBJECT(check_all_setters), "store",store);
 	
 	g_object_set_data(G_OBJECT(check_all_inner), "column-num", GINT_TO_POINTER(IS_INNER));
 	g_object_set_data(G_OBJECT(check_all_inner), "name-stright",inner_stright);
 	g_object_set_data(G_OBJECT(check_all_inner), "name-reverse",inner_reverse);
 	g_object_set_data(G_OBJECT(check_all_inner), "name-current-stright",GINT_TO_POINTER(all_inner));
+	g_object_set_data(G_OBJECT(check_all_inner), "store",store);
 	
 	g_object_set_data(G_OBJECT(check_all), "column-num", GINT_TO_POINTER(-1));
 	g_object_set_data(G_OBJECT(check_all), "name-stright",all_stright);
 	g_object_set_data(G_OBJECT(check_all), "name-reverse",all_reverse);
 	g_object_set_data(G_OBJECT(check_all), "name-current-stright",GINT_TO_POINTER(all_all));
+	g_object_set_data(G_OBJECT(check_all), "button-all-getters",check_all_getters);
+	g_object_set_data(G_OBJECT(check_all), "button-all-setters",check_all_setters);
+	g_object_set_data(G_OBJECT(check_all), "button-all-inner",check_all_inner);
+	g_object_set_data(G_OBJECT(check_all), "store",store);
 	
-	g_signal_connect(G_OBJECT(check_all_setters), "clicked", G_CALLBACK(do_check_task), store);
-	g_signal_connect(G_OBJECT(check_all_getters), "clicked", G_CALLBACK(do_check_task), store);
-	g_signal_connect(G_OBJECT(check_all_inner), "clicked", G_CALLBACK(do_check_task), store);
-	g_signal_connect(G_OBJECT(check_all), "clicked", G_CALLBACK(do_check_task), store);
+	g_signal_connect(G_OBJECT(check_all_setters), "clicked", G_CALLBACK(do_check_task), NULL);
+	g_signal_connect(G_OBJECT(check_all_getters), "clicked", G_CALLBACK(do_check_task), NULL);
+	g_signal_connect(G_OBJECT(check_all_inner), "clicked", G_CALLBACK(do_check_task), NULL);
+	g_signal_connect(G_OBJECT(check_all), "clicked", G_CALLBACK(do_check_task), NULL);
 
 
 	gtk_container_add(GTK_CONTAINER(hbox1), check_all_setters);
