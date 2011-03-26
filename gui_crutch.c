@@ -108,6 +108,7 @@ void do_check_task(GtkButton *button, gpointer *user_data) {
 	gchar *name_reverse;
 	size_t i;
 	GtkTreeIter iter;
+	gboolean test_on, test_off;
 	
 	column_number = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(button), "column-num"));
 	name_current_stright = GPOINTER_TO_UINT(g_object_get_data(G_OBJECT(button), "name-current-stright"));
@@ -151,6 +152,27 @@ void do_check_task(GtkButton *button, gpointer *user_data) {
 			g_object_set(button,"label", name_stright, NULL);
 		} else {
 			g_object_set(button,"label", name_reverse, NULL);
+		}
+		test_on = TRUE;
+		test_off = TRUE;
+		for (i=0; i < property_list.used; i++) {
+			if (property_list.data[i].do_setter == FALSE || property_list.data[i].do_getter == FALSE || property_list.data[i].is_inner == FALSE) {
+				test_on = FALSE;
+			}
+			if (property_list.data[i].do_setter == TRUE || property_list.data[i].do_getter == TRUE || property_list.data[i].is_inner == TRUE) {
+				test_off = FALSE;
+			}
+		}
+		if (test_on || test_off) {
+				GtkWidget *button_check_all = g_object_get_data(G_OBJECT(button), "button-check-all");
+				name_stright = g_object_get_data(G_OBJECT(button_check_all), "name-stright");
+				name_reverse = g_object_get_data(G_OBJECT(button_check_all), "name-reverse");
+				if (test_on) {
+					g_object_set(button_check_all,"label", name_reverse, NULL);
+				} else if (test_off) {
+					g_object_set(button_check_all,"label", name_stright, NULL);
+				}
+				g_object_set_data(G_OBJECT(button_check_all), "name-current-stright",GINT_TO_POINTER(name_current_stright));
 		}
 	} else {
 		GtkWidget *button_all_getters = g_object_get_data(G_OBJECT(button), "button-all-getters");
@@ -280,6 +302,7 @@ gboolean gui_interaction_dialog() {
 	g_object_set_data(G_OBJECT(check_all_getters), "name-stright",getters_stright);
 	g_object_set_data(G_OBJECT(check_all_getters), "name-reverse",getters_reverse);
 	g_object_set_data(G_OBJECT(check_all_getters), "name-current-stright",GINT_TO_POINTER(all_getters));
+	g_object_set_data(G_OBJECT(check_all_getters), "button-check-all",check_all);
 	g_object_set_data(G_OBJECT(check_all_getters), "store",store);
 	
 	
@@ -287,12 +310,14 @@ gboolean gui_interaction_dialog() {
 	g_object_set_data(G_OBJECT(check_all_setters), "name-stright",setters_stright);
 	g_object_set_data(G_OBJECT(check_all_setters), "name-reverse",setters_reverse);
 	g_object_set_data(G_OBJECT(check_all_setters), "name-current-stright",GINT_TO_POINTER(all_setters));
+	g_object_set_data(G_OBJECT(check_all_setters), "button-check-all",check_all);
 	g_object_set_data(G_OBJECT(check_all_setters), "store",store);
 	
 	g_object_set_data(G_OBJECT(check_all_inner), "column-num", GINT_TO_POINTER(IS_INNER));
 	g_object_set_data(G_OBJECT(check_all_inner), "name-stright",inner_stright);
 	g_object_set_data(G_OBJECT(check_all_inner), "name-reverse",inner_reverse);
 	g_object_set_data(G_OBJECT(check_all_inner), "name-current-stright",GINT_TO_POINTER(all_inner));
+	g_object_set_data(G_OBJECT(check_all_inner), "button-check-all",check_all);
 	g_object_set_data(G_OBJECT(check_all_inner), "store",store);
 	
 	g_object_set_data(G_OBJECT(check_all), "column-num", GINT_TO_POINTER(-1));
