@@ -25,8 +25,6 @@ enum TreeCols {
 	N_COLS
 };
 
-
-
 void toggle_checker(GtkCellRendererToggle *cell, gchar *path_str, gpointer data);
 GtkWidget *make_tree(GtkTreeStore *store);
 void populate_tree_with_data(GtkTreeStore *store);

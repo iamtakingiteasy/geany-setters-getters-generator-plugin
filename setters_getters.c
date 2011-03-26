@@ -356,6 +356,7 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	size_t current_doc_line;
 	size_t current_doc_column;
 	gchar *current_doc_contents;
+	gboolean res;
 	/* clang stuff */
 	gchar filename[] = "/path/to/nowhere/NonExistingFile.cpp";
 	CXFile code_file;
@@ -407,7 +408,7 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	clang_visitChildren(code_cursor,property_list_builder,current_doc_sci);
 	
 	if (property_list.used == 0) {
-		dialogs_show_msgbox(GTK_MESSAGE_INFO, "Not properties in class. Aborting.");
+		dialogs_show_msgbox(GTK_MESSAGE_INFO, "No properties in class. Aborting.");
 		return;
 	}
 	
@@ -416,8 +417,12 @@ static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata) {
 	
 	filter_already_existing_methods(code_translation_unit,filename,class_name);
 	
+	res = TRUE;
+	if (sg_show_interaction) {
+		res = gui_interaction_dialog();
+	}
 
-	if (gui_interaction_dialog()) {
+	if (res) {
 		if (!gen_setters_getters(current_doc_sci,code_cursor,class_name)) {
 			dialogs_show_msgbox(GTK_MESSAGE_INFO, "Class seems to be not terminated with ';' (semicolon) character. Aborting.");
 		}
@@ -447,6 +452,8 @@ void plugin_init(GeanyData *data) {
 		
 	group = stash_group_new("setters-getters");
 	
+	
+	
 	stash_group_add_string(group, &sg_method_name_getter, "sg_method_name_getter", "get_$NAME");
 	stash_group_add_string(group, &sg_method_name_setter, "sg_method_name_setter", "set_$NAME");
 	
@@ -460,27 +467,208 @@ void plugin_init(GeanyData *data) {
 	stash_group_add_string(group, &sg_outter_template, "sg_outter_template", "\n$SETTERS\n$GETTERS\n");
 	stash_group_add_string(group, &sg_outter_setters, "sg_outter_setters", "void $CLASS::$METHNAME($TYPE value) {\n\tthis->$NAME = value;\n}\n");
 	stash_group_add_string(group, &sg_outter_getters, "sg_outter_getters", "$TYPE $CLASS::$METHNAME(void) {\n\tthis->return this->$NAME;\n}\n");
-	stash_group_add_boolean(group, &sg_placement_inner, "sg_placement_inner", TRUE);
-	stash_group_add_boolean(group, &sg_do_setters, "sg_do_setters", TRUE);
-	stash_group_add_boolean(group, &sg_do_getters, "sg_do_getters", TRUE);
-	stash_group_add_integer(group, (int *)&sg_setter_kind, "sg_setter_kind", (int)PUBLIC);
-	stash_group_add_integer(group, (int *)&sg_getter_kind, "sg_getter_kind", (int)PUBLIC);
 	
+	stash_group_add_boolean(group, &sg_show_interaction, "sg_show_interaction", TRUE);
+	stash_group_add_boolean(group, &sg_placement_inner, "sg_placement_inner", TRUE);
+	stash_group_add_boolean(group, &sg_do_getters, "sg_do_getters", TRUE);
+	stash_group_add_boolean(group, &sg_do_setters, "sg_do_setters", TRUE);
+
 	stash_group_load_from_file(group,config_filename);
 	stash_group_save_to_file(group, config_filename, G_KEY_FILE_NONE);
+}
+
+gchar *response_configure_string_helper(GtkDialog *dialog,gchar *propname) {
+	GtkTextBuffer *buffer;
+	GtkTextIter iter_start;
+	GtkTextIter iter_end;	
+	buffer = gtk_text_view_get_buffer(g_object_get_data(G_OBJECT(dialog), propname));
+	gtk_text_buffer_get_start_iter(buffer,&iter_start);;
+	gtk_text_buffer_get_end_iter(buffer,&iter_end);
 	
+	return gtk_text_buffer_get_text(buffer,&iter_start,&iter_end,FALSE);
+	
+}
+
+void response_configure(GtkDialog *dialog, gint response, gpointer user_data) {
+	if (response != GTK_RESPONSE_OK && response != GTK_RESPONSE_APPLY) {
+		return;
+	}
+	sg_show_interaction = gtk_toggle_button_get_active(g_object_get_data(G_OBJECT(dialog), "sg_show_interaction"));
+	sg_placement_inner = gtk_toggle_button_get_active(g_object_get_data(G_OBJECT(dialog), "sg_placement_inner"));
+	sg_do_getters = gtk_toggle_button_get_active(g_object_get_data(G_OBJECT(dialog), "sg_do_getters"));
+	sg_do_setters = gtk_toggle_button_get_active(g_object_get_data(G_OBJECT(dialog), "sg_do_setters"));
+
+	free(sg_method_name_getter);
+	free(sg_method_name_setter);
+	free(sg_inner_template);
+	free(sg_inner_setters);
+	free(sg_inner_getters);
+	
+	free(sg_outter_forward_template);
+	free(sg_outter_forward_setters);
+	free(sg_outter_forward_getters);
+	free(sg_outter_template);
+	free(sg_outter_setters);
+	free(sg_outter_getters);
+	
+	
+	sg_method_name_getter = response_configure_string_helper(dialog,"sg_method_name_getter");
+	sg_method_name_setter = response_configure_string_helper(dialog,"sg_method_name_setter");
+	sg_inner_template = response_configure_string_helper(dialog,"sg_inner_template");
+	sg_inner_setters = response_configure_string_helper(dialog,"sg_inner_setters");
+	sg_inner_getters = response_configure_string_helper(dialog,"sg_inner_getters");
+
+	sg_outter_forward_template = response_configure_string_helper(dialog,"sg_outter_forward_template");
+	sg_outter_forward_setters = response_configure_string_helper(dialog,"sg_outter_forward_setters");
+	sg_outter_forward_getters = response_configure_string_helper(dialog,"sg_outter_forward_getters");
+	sg_outter_template = response_configure_string_helper(dialog,"sg_outter_template");
+	sg_outter_setters = response_configure_string_helper(dialog,"sg_outter_setters");
+	sg_outter_getters = response_configure_string_helper(dialog,"sg_outter_getters");
+
+
+
+	stash_group_save_to_file(group, config_filename, G_KEY_FILE_NONE);
+}
+
+void set_helper_toggle_button(GtkDialog *dialog, GtkWidget *vbox, gchar *descr, gchar *id, gboolean value) {
+	GtkWidget *widget;
+	
+	widget = gtk_check_button_new_with_label(descr);
+	gtk_toggle_button_set_active((GtkToggleButton *)widget,value);
+	gtk_box_pack_start(GTK_BOX(vbox), widget, FALSE, FALSE, 3);
+	g_object_set_data(G_OBJECT(dialog), id, widget);	
+}
+
+void set_helper_edit_field(GtkDialog *dialog, GtkWidget *vbox, gboolean in, gchar *descr, gchar *id, gchar *value) {
+	GtkWidget *frame, *view;
+	GtkTextBuffer *buffer;
+	
+	frame = gtk_frame_new(descr);
+	buffer = gtk_text_buffer_new(NULL);
+	gtk_text_buffer_set_text(buffer,value,strlen(value));
+	view = gtk_text_view_new_with_buffer(buffer);
+	gtk_container_add(GTK_CONTAINER(frame), view);
+	if (in) {
+		gtk_container_add(GTK_CONTAINER(vbox), frame);
+	} else {
+		gtk_box_pack_start(GTK_BOX(vbox), frame, FALSE, FALSE, 3);
+	}
+	g_object_set_data(G_OBJECT(dialog), id, view);	
+}
+
+GtkWidget* plugin_configure (GtkDialog *dialog)  {
+	GtkWidget *global_vbox, *notebook;
+	
+	GtkWidget *tab1_vbox, *tab1_label;
+	
+	GtkWidget *tab2_vbox, *tab2_label, *tab2_hbox, *tab2_label1;
+
+	GtkWidget *tab3_vbox, *tab3_label, *tab3_hbox, *tab3_label1;
+	
+	GtkWidget *tab4_vbox, *tab4_label, *tab4_hbox, *tab4_label1;
+	
+	GtkWidget *tab5_vbox, *tab5_label, *tab5_hbox, *tab5_label1;
+	
+	global_vbox = gtk_vbox_new(FALSE,10);
+	
+	tab1_vbox = gtk_vbox_new(FALSE,10);
+	tab1_label = gtk_label_new_with_mnemonic("Main settings");
+	set_helper_toggle_button(dialog, tab1_vbox,"Show interaction dialog","sg_show_interaction",sg_show_interaction);
+	set_helper_toggle_button(dialog, tab1_vbox,"Place methods inside class by default","sg_placement_inner",sg_placement_inner);
+	set_helper_toggle_button(dialog, tab1_vbox,"Create setter methods by default","sg_do_setters",sg_do_setters);
+	set_helper_toggle_button(dialog, tab1_vbox,"Create getter methods by default","sg_do_getters",sg_do_getters);
+	
+	tab2_vbox = gtk_vbox_new(FALSE,10);
+	tab2_label = gtk_label_new_with_mnemonic("Global templates");
+	tab2_hbox = gtk_hbox_new(FALSE,10);
+	set_helper_edit_field(dialog, tab2_hbox, TRUE, "Getter method name", "sg_method_name_getter", sg_method_name_getter);
+	set_helper_edit_field(dialog, tab2_hbox, TRUE, "Setter method name", "sg_method_name_setter", sg_method_name_setter);
+	gtk_box_pack_start(GTK_BOX(tab2_vbox), tab2_hbox, FALSE, FALSE, 3);
+	tab2_label1 = gtk_label_new_with_mnemonic("$NAME - property name");
+	gtk_box_pack_start(GTK_BOX(tab2_vbox), tab2_label1, FALSE, FALSE, 3);
+	
+	
+	tab3_vbox = gtk_vbox_new(FALSE,10);
+	tab3_label = gtk_label_new_with_mnemonic("Inner templates");
+	tab3_hbox = gtk_hbox_new(FALSE,10);
+	set_helper_edit_field(dialog, tab3_hbox, TRUE, "Getter method template", "sg_inner_getters", sg_inner_getters);
+	set_helper_edit_field(dialog, tab3_hbox, TRUE, "Setter method template", "sg_inner_setters", sg_inner_setters);
+	gtk_box_pack_start(GTK_BOX(tab3_vbox), tab3_hbox, FALSE, FALSE, 3);
+	set_helper_edit_field(dialog, tab3_vbox, FALSE, "Master template", "sg_inner_template", sg_inner_template);
+	tab3_label1 = gtk_label_new_with_mnemonic("$NAME - property name; $TYPE - property type\n$KIND - property kind; $CLASS - property class\n$METHNAME - method name from global templates");
+	gtk_box_pack_start(GTK_BOX(tab3_vbox), tab3_label1, FALSE, FALSE, 3);
+	
+	tab4_vbox = gtk_vbox_new(FALSE,10);
+	tab4_label = gtk_label_new_with_mnemonic("Outter declaration");
+	tab4_hbox = gtk_hbox_new(FALSE,10);
+	set_helper_edit_field(dialog, tab4_hbox, TRUE, "Forward getter method template", "sg_outter_forward_getters", sg_outter_forward_getters);
+	set_helper_edit_field(dialog, tab4_hbox, TRUE, "Forward setter method template", "sg_outter_forward_setters", sg_outter_forward_setters);
+	gtk_box_pack_start(GTK_BOX(tab4_vbox), tab4_hbox, FALSE, FALSE, 3);
+	set_helper_edit_field(dialog, tab4_vbox, FALSE, "Forward master template", "sg_outter_forward_template", sg_outter_forward_template);
+	tab4_label1 = gtk_label_new_with_mnemonic("$NAME - property name; $TYPE - property type\n$KIND - property kind; $CLASS - property class\n$METHNAME - method name from global templates");
+	gtk_box_pack_start(GTK_BOX(tab4_vbox), tab4_label1, FALSE, FALSE, 3);
+	
+	tab5_vbox = gtk_vbox_new(FALSE,10);
+	tab5_label = gtk_label_new_with_mnemonic("Outter definition");
+	tab5_hbox = gtk_hbox_new(FALSE,10);
+	set_helper_edit_field(dialog, tab5_hbox, TRUE, "Outter getter method template", "sg_outter_getters", sg_outter_getters);
+	set_helper_edit_field(dialog, tab5_hbox, TRUE, "Outter setter method template", "sg_outter_setters", sg_outter_setters);
+	gtk_box_pack_start(GTK_BOX(tab5_vbox), tab5_hbox, FALSE, FALSE, 3);
+	set_helper_edit_field(dialog, tab5_vbox, FALSE, "Outter master template", "sg_outter_template", sg_outter_template);
+	tab5_label1 = gtk_label_new_with_mnemonic("$NAME - property name; $TYPE - property type\n$KIND - property kind; $CLASS - property class\n$METHNAME - method name from global templates");
+	gtk_box_pack_start(GTK_BOX(tab5_vbox), tab5_label1, FALSE, FALSE, 3);
+	
+	notebook = gtk_notebook_new();
+	gtk_notebook_append_page((GtkNotebook *)notebook,tab1_vbox,tab1_label);
+	gtk_notebook_append_page((GtkNotebook *)notebook,tab2_vbox,tab2_label);
+	gtk_notebook_append_page((GtkNotebook *)notebook,tab3_vbox,tab3_label);
+	gtk_notebook_append_page((GtkNotebook *)notebook,tab4_vbox,tab4_label);
+	gtk_notebook_append_page((GtkNotebook *)notebook,tab5_vbox,tab5_label);
+	
+	gtk_container_add(GTK_CONTAINER(global_vbox), notebook);
+	
+	g_signal_connect(dialog, "response", G_CALLBACK(response_configure), NULL);
+	
+	gtk_widget_show_all(global_vbox);
+	return global_vbox;
 	/*
-	stash_group_add_toggle_button(group, NULL, "handle", TRUE, "check_handle");//
+	GtkWidget *vbox, *vbox1, *vbox2, *notebook, *frame1, *frame2;
+	GtkWidget *label1, *label2;
+	GtkWidget *hbox1;
+	vbox = gtk_vbox_new(TRUE, 10);
+	hbox1 = gtk_hbox_new(TRUE, 10);
+
+	notebook = gtk_notebook_new();
+
+	vbox1 = gtk_vbox_new(TRUE, 10);
+	label1 = gtk_label_new_with_mnemonic("Main settings");
+	
+	vbox2 = gtk_vbox_new(TRUE, 10);
+	label2 = gtk_label_new_with_mnemonic("Global templates");
+	
+		
+
+	
+	*/
+	/*
+	set_helper_edit_field(dialog,vbox2, sg_method_name_getter);
+	set_helper_edit_field(dialog,vbox, "Setter method name\n$NAME - property's name", "sg_method_name_setter", sg_method_name_setter);
+	set_helper_edit_field(dialog,vbox, "Inner master template\n$SETTERS - setters code\n$GETTERS - getters code", "sg_inner_template", sg_inner_template);
+	*/
+	/*
+	
+	gtk_notebook_append_page((GtkNotebook *)notebook,vbox1,label1);
+	gtk_notebook_append_page((GtkNotebook *)notebook,vbox2,label2);
+	
+	
+	gtk_container_add(GTK_CONTAINER(vbox), notebook);
+	
+
+	gtk_widget_show_all(vbox);
+	return vbox;
 	*/
 }
 
-/*
-GtkWidget* plugin_configure (GtkDialog *dialog)  {
-	GtkWidget *vbox;
-	vbox = gtk_vbox_new(FALSE, 6);
-	return vbox;
-}
-*/
 void plugin_cleanup(void) {
     gtk_widget_destroy(main_menu_item);
 	free(config_filename);

@@ -21,7 +21,7 @@ gchar           *config_dirname = NULL;
 PLUGIN_VERSION_CHECK(147)
 
 PLUGIN_SET_INFO("C++ setters/getters generator", "Generates C++ setters and getters methods",
-                "0.03-alpha", "Alexander Tumin <itakingiteasy@gmail.com>")
+                "0.1-beta", "Alexander Tumin <itakingiteasy@gmail.com>")
 
 struct GcharTuple {
 	gchar *first;
@@ -35,12 +35,15 @@ static GtkWidget *main_menu_item = NULL;
 
 static void item_activate_cb(GtkMenuItem *menuitem, gpointer gdata);
 void plugin_init(GeanyData *data);
+static void response_configure(GtkDialog *dialog, gint response, gpointer user_data);
 void plugin_cleanup(void);
+GtkWidget* plugin_configure (GtkDialog *dialog);
 
 gboolean sg_do_setters;
 gboolean sg_do_getters;
 enum PropertyKind sg_setter_kind;
 enum PropertyKind sg_getter_kind;
+
 gboolean sg_placement_inner;
 
 /* Default values of templates */
@@ -59,6 +62,7 @@ gboolean sg_placement_inner;
  * $TYPE - type of property
  */
  
+gboolean sg_show_interaction;
 
 gchar *sg_method_name_getter;
 gchar *sg_method_name_setter;
