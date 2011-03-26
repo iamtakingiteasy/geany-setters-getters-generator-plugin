@@ -631,42 +631,6 @@ GtkWidget* plugin_configure (GtkDialog *dialog)  {
 	
 	gtk_widget_show_all(global_vbox);
 	return global_vbox;
-	/*
-	GtkWidget *vbox, *vbox1, *vbox2, *notebook, *frame1, *frame2;
-	GtkWidget *label1, *label2;
-	GtkWidget *hbox1;
-	vbox = gtk_vbox_new(TRUE, 10);
-	hbox1 = gtk_hbox_new(TRUE, 10);
-
-	notebook = gtk_notebook_new();
-
-	vbox1 = gtk_vbox_new(TRUE, 10);
-	label1 = gtk_label_new_with_mnemonic("Main settings");
-	
-	vbox2 = gtk_vbox_new(TRUE, 10);
-	label2 = gtk_label_new_with_mnemonic("Global templates");
-	
-		
-
-	
-	*/
-	/*
-	set_helper_edit_field(dialog,vbox2, sg_method_name_getter);
-	set_helper_edit_field(dialog,vbox, "Setter method name\n$NAME - property's name", "sg_method_name_setter", sg_method_name_setter);
-	set_helper_edit_field(dialog,vbox, "Inner master template\n$SETTERS - setters code\n$GETTERS - getters code", "sg_inner_template", sg_inner_template);
-	*/
-	/*
-	
-	gtk_notebook_append_page((GtkNotebook *)notebook,vbox1,label1);
-	gtk_notebook_append_page((GtkNotebook *)notebook,vbox2,label2);
-	
-	
-	gtk_container_add(GTK_CONTAINER(vbox), notebook);
-	
-
-	gtk_widget_show_all(vbox);
-	return vbox;
-	*/
 }
 
 void plugin_cleanup(void) {

@@ -21,7 +21,7 @@ gchar           *config_dirname = NULL;
 PLUGIN_VERSION_CHECK(147)
 
 PLUGIN_SET_INFO("C++ setters/getters generator", "Generates C++ setters and getters methods",
-                "0.1-beta", "Alexander Tumin <itakingiteasy@gmail.com>")
+                "0.1.1-beta", "Alexander Tumin <itakingiteasy@gmail.com>")
 
 struct GcharTuple {
 	gchar *first;
